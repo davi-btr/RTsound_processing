@@ -21,7 +21,7 @@
 #define MAX_KEY 72
 //#define N_SEQ 5		//sequenze di frames prima di scegliere nota più simile
 
-#define IF_ERR(errcode, msg, extra) if(errcode) {printf msg; extra} 
+#define IF_ERR(errcode, msg, extra) if(errcode) {printf msg; extra;} 
 #define IF_ERR_EXIT(errcode, msg) if(errcode) {fprintf msg; exit(1);} 
 
 typedef enum {OFF = 0, ON} bool_t;
@@ -73,8 +73,12 @@ void init_pcm(snd_pcm_t **capture_handle, char* dev, unsigned int* rate_p, unsig
   int err;
   snd_pcm_hw_params_t *hw_params;
 
-  if (dev == NULL)
-    dev = "default";
+  dbg_printf("init pcm\n");
+  if (dev == NULL) {
+    char str[8] = "default";
+
+    dev = str;
+  }
   IF_ERR_EXIT(((err = snd_pcm_open(capture_handle, dev, SND_PCM_STREAM_CAPTURE, 0)) < 0), (stderr, "cannot open audio device (%s)\n",  snd_strerror(err)))
 
   IF_ERR_EXIT(((err = snd_pcm_hw_params_malloc (&hw_params)) < 0), (stderr, "cannot allocate hardware parameter structure (%s)\n", snd_strerror(err)))
@@ -97,21 +101,36 @@ void init_pcm(snd_pcm_t **capture_handle, char* dev, unsigned int* rate_p, unsig
 
   IF_ERR_EXIT(((err = snd_pcm_prepare (*capture_handle)) < 0), (stderr, "cannot prepare audio interface for use (%s)\n", snd_strerror(err)))
 
+  dbg_printf("pcm set!\n");
 }
 
 void init_seq(snd_seq_t **seq_handle, char* dev, char* port_name, int *port_id)
 {
   int err;
   
-  if (dev == NULL)
-    dev = "default";
+  dbg_printf("init seq\n");
+  if (dev == NULL) {
+    char str[8] = "default";
+    
+    dev = str;
+    dbg_printf("seq init with %s\n", dev);
+  }
   IF_ERR_EXIT(((err = snd_seq_open(seq_handle, dev, SND_SEQ_OPEN_OUTPUT, 0)) < 0), (stderr, "cannot open audio device (%s)\n", snd_strerror (err)))
   //snd_seq_set_client_name()
+  dbg_printf("seq opened\n");
   
+  if (port_name == NULL) {
+    char str[15] = "MIDI-port-test";
+
+    port_name = str;
+  }
   IF_ERR_EXIT(((err = snd_seq_create_simple_port(*seq_handle, port_name, SND_SEQ_PORT_CAP_READ|SND_SEQ_PORT_CAP_SUBS_READ, SND_SEQ_PORT_TYPE_MIDI_GENERIC)) < 0), (stderr, "cannot open audio device (%s)\n",  snd_strerror (err)))
 
+  dbg_printf("port ok (%d)", err);
   *port_id = err;
-  IF_ERR_EXIT(((err = snd_seq_connect_to(*seq_handle, *port_id, SND_SEQ_CLIENT_SYSTEM, SND_SEQ_PORT_SYSTEM_ANNOUNCE)) < 0), (stderr, "snd_seq_subscribe_to() failed: %s\n", snd_strerror(err)))
+  dbg_printf("port %d\n", *port_id);
+  //IF_ERR_EXIT(((err = snd_seq_connect_to(*seq_handle, *port_id, SND_SEQ_CLIENT_SYSTEM, SND_SEQ_PORT_SYSTEM_ANNOUNCE)) < 0), (stderr, "snd_seq_subscribe_to() failed: %s\n", snd_strerror(err)))
+  IF_ERR(((err = snd_seq_connect_to(*seq_handle, *port_id, SND_SEQ_CLIENT_SYSTEM, SND_SEQ_PORT_SYSTEM_ANNOUNCE)) < 0), ("snd_seq_subscribe_to() failed: %s\n", snd_strerror(err)), (dbg_printf("")))
   
 }
 
@@ -169,7 +188,7 @@ int main (int argc, char *argv[])
   snd_seq_t *seq_stream;
   unsigned int samplerate = 48000, frames = 4096, channels = 1;
   const char *fname = NULL;
-  char *audio_in = NULL, *midi_out = NULL, *port_name;
+  char *audio_in = NULL, *midi_out = NULL, *port_name = NULL;
   float *buf, dft_on_note[MAX_KEY - MIN_KEY + 1], *x;
   note_info_t table[MAX_KEY - MIN_KEY + 1];
   snd_seq_event_t ev;
@@ -191,24 +210,30 @@ int main (int argc, char *argv[])
           break;
         case 'i':
           audio_in = argv[++i];
+	  dbg_printf("audio in %s\n", audio_in);
           break;
         case 'o':
           midi_out = argv[++i];
+	  dbg_printf("midi out %s\n", midi_out);
           break;
         case 'p':
           port_name = argv[++i];
+	  dbg_printf("port %s\n", port_name);
           break;
         case 'O':
           fname = argv[++i];
           break;
         case 'r':
           samplerate = atoi(argv[++i]);
+	  dbg_printf("samplerate %d\n", samplerate);
           break;
         case 'c':
           channels = atoi(argv[++i]);
+	  dbg_printf("channels %d\n", channels);
           break;
         case 'f':
           frames = atoi(argv[++i]);
+	  dbg_printf("frames %d\n", frames);
           break;
         default:
           fprintf(stderr, "invalid option\n");
@@ -230,6 +255,7 @@ int main (int argc, char *argv[])
   IF_ERR_EXIT(((buf = malloc(sizeof(float) * frames * channels)) == 0), (stderr, "failed memory allocation\n"))
   IF_ERR_EXIT(((x = malloc(sizeof(float) * frames)) == 0), (stderr, "failed memory allocation\n"))
 
+  dbg_printf("entrata ciclo\n");
   for (i = 0; !stop; ++i) {
     IF_ERR_EXIT(((err = snd_pcm_readi(pcm_stream, buf, frames)) != frames), (stderr, "read from audio interface failed (%s)\n", snd_strerror(err)))
 //RMS normalization
