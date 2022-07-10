@@ -1,6 +1,6 @@
 /*
   * parte principale del programma: registra audio, ne calcola la trasformata,
-  * la confronta, la mostra a schermo e salva su file
+  * la confronta e salva su file
 */
 
 #include <stdio.h>
@@ -19,17 +19,18 @@
 
 #define MIN_KEY 64
 #define MAX_KEY 72
+#define NOISE	0.001
 //#define N_SEQ 5		//sequenze di frames prima di scegliere nota più simile
 
 #define IF_ERR(errcode, msg, extra) if(errcode) {printf msg; extra;} 
 #define IF_ERR_EXIT(errcode, msg) if(errcode) {fprintf msg; exit(1);} 
 
-typedef enum {OFF = 0, ON} bool_t;
+typedef enum {FALSE = 0, TRUE} bool_t;
 
 typedef struct note_struct {
   bool_t	on;
   int		vel;
-  float		harmonic_power_old;
+  float		harmonic_power_old;	//to be used to detect velocity
   float		harmonic_power;
 } note_info_t;
 
@@ -126,7 +127,6 @@ void init_seq(snd_seq_t **seq_handle, char* dev, char* port_name, int *port_id)
   }
   IF_ERR_EXIT(((err = snd_seq_create_simple_port(*seq_handle, port_name, SND_SEQ_PORT_CAP_READ|SND_SEQ_PORT_CAP_SUBS_READ, SND_SEQ_PORT_TYPE_MIDI_GENERIC)) < 0), (stderr, "cannot open audio device (%s)\n",  snd_strerror (err)))
 
-  dbg_printf("port ok (%d)", err);
   *port_id = err;
   dbg_printf("port %d\n", *port_id);
   //IF_ERR_EXIT(((err = snd_seq_connect_to(*seq_handle, *port_id, SND_SEQ_CLIENT_SYSTEM, SND_SEQ_PORT_SYSTEM_ANNOUNCE)) < 0), (stderr, "snd_seq_subscribe_to() failed: %s\n", snd_strerror(err)))
@@ -192,7 +192,8 @@ int main (int argc, char *argv[])
   float *buf, dft_on_note[MAX_KEY - MIN_KEY + 1], *x;
   note_info_t table[MAX_KEY - MIN_KEY + 1];
   snd_seq_event_t ev;
-  float rms, hrm_pwr_old = 0;
+  float rms, rms_old = 0;
+  bool_t none = TRUE;
 
   if (argc==1) {
     usage();
@@ -242,7 +243,7 @@ int main (int argc, char *argv[])
     }
   }
   
-  IF_ERR(((fd = open(fname, O_CREAT | O_WRONLY, 0666)) < 0), ("Unable to record\n"), ;)
+  IF_ERR(((fd = open(fname, O_CREAT | O_WRONLY, 0666)) < 0), ("Not recording\n"), ;)
   dbg_printf("Recording to file: %s\n", fname);
 
   init_pcm(&pcm_stream, audio_in, &samplerate, &channels);
@@ -250,7 +251,7 @@ int main (int argc, char *argv[])
   init_seq(&seq_stream, midi_out, port_name, &port_id);
 
   for (i = 0; i < MAX_KEY - MIN_KEY + 1; i++)
-    table[i].on = OFF;
+    table[i].on = FALSE;
 
   IF_ERR_EXIT(((buf = malloc(sizeof(float) * frames * channels)) == 0), (stderr, "failed memory allocation\n"))
   IF_ERR_EXIT(((x = malloc(sizeof(float) * frames)) == 0), (stderr, "failed memory allocation\n"))
@@ -267,6 +268,11 @@ int main (int argc, char *argv[])
       rms += x[i] * x[i];
     }
     rms /= frames;
+    
+    if (rms <= NOISE)
+      none = TRUE;
+    dbg_printf("energy %.4f\n", rms); 
+
     rms = sqrt(rms);			//RMS
     for (int i = 0; i < frames; i++) {
       x[i] /= rms;
@@ -281,17 +287,19 @@ int main (int argc, char *argv[])
     int vel, index = -1;
     float peak, hrm_pwr = 0;
 
-    index = find_pitch(dft_on_note, MAX_KEY - MIN_KEY + 1, &peak, &hrm_pwr);
-    vel = get_velocity(MIN_KEY + index, hrm_pwr);
+    if (!none) {
+      index = find_pitch(dft_on_note, MAX_KEY - MIN_KEY + 1, &peak, &hrm_pwr);
+      vel = get_velocity(MIN_KEY + index, hrm_pwr);
+      dbg_printf("match: key %d\n", index + MIN_KEY);
+    }
 
-    dbg_printf("miglior risultato: key %.4f\n", MIDI_freq[index + MIN_KEY]);
-    
 //output to MIDI port
-    if (vel == 0) {
-      //no NOTE
+    if (none) {
+      //turn off all notes
       for (int i = 0; i < MAX_KEY - MIN_KEY + 1; i++) {
         if (table[i].on) {
 	  //send NOTEOFF event
+          dbg_printf("turning off note %d\n", MIN_KEY + i);
           snd_seq_ev_clear(&ev);
           snd_seq_ev_set_source(&ev, port_id);
           snd_seq_ev_set_subs(&ev);
@@ -299,10 +307,12 @@ int main (int argc, char *argv[])
           ev.type = SND_SEQ_EVENT_NOTEOFF;
 
           snd_seq_event_output_direct(seq_stream, &ev);
+          table[i].on = FALSE;
 	}
       }
     } else if (!(table[index].on)) {
       //send NOTEON event
+      dbg_printf("playing note %d\n", index + MIN_KEY);
       snd_seq_ev_clear(&ev);
       snd_seq_ev_set_source(&ev, port_id);
       snd_seq_ev_set_subs(&ev);
@@ -313,8 +323,11 @@ int main (int argc, char *argv[])
       ev.data.note.velocity = vel;
 
       snd_seq_event_output_direct(seq_stream, &ev);
-    } else if (hrm_pwr > hrm_pwr_old) {
-      //send NOTEON event
+      table[index].on = TRUE;
+    } else if (rms > 2.0 * rms_old) {	//criterio temporaneo e parametro scelto sulla base di esempi
+      //NOTEOFF needed ??
+      //send new NOTEON event
+      dbg_printf("new note %d\n", index + MIN_KEY);
       snd_seq_ev_clear(&ev);
       snd_seq_ev_set_source(&ev, port_id);
       snd_seq_ev_set_subs(&ev);
@@ -327,7 +340,7 @@ int main (int argc, char *argv[])
       snd_seq_event_output_direct(seq_stream, &ev);
     }
 
-    hrm_pwr_old = hrm_pwr;
+    rms_old = rms;
 
 /* display dft
     if (err = grph_display(magnitude)) {
