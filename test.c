@@ -1,6 +1,6 @@
 /*
-  * parte principale del programma: registra audio, ne calcola la trasformata,
-  * la confronta e salva su file
+  * Test di sndprocess.c che legga da file non da microfono
+  * 
 */
 
 #include <stdio.h>
@@ -30,7 +30,7 @@ typedef enum {FALSE = 0, TRUE} bool_t;
 typedef struct note_struct {
   bool_t	on;
   int		vel;
-  float		harmonic_power_old;	//to be used to detect velocity
+  float		harmonic_power_old;
   float		harmonic_power;
 } note_info_t;
 
@@ -80,7 +80,7 @@ void init_pcm(snd_pcm_t **capture_handle, char* dev, unsigned int* rate_p, unsig
 
     dev = str;
   }
-  IF_ERR_EXIT(((err = snd_pcm_open(capture_handle, dev, SND_PCM_STREAM_CAPTURE, 0)) < 0), (stderr, "cannot open audio device (%s)\n",  snd_strerror(err)))
+  IF_ERR_EXIT(((err = snd_pcm_open(capture_handle, dev, SND_PCM_STREAM_PLAYBACK, 0)) < 0), (stderr, "cannot open audio device (%s)\n",  snd_strerror(err)))
 
   IF_ERR_EXIT(((err = snd_pcm_hw_params_malloc (&hw_params)) < 0), (stderr, "cannot allocate hardware parameter structure (%s)\n", snd_strerror(err)))
 
@@ -127,6 +127,7 @@ void init_seq(snd_seq_t **seq_handle, char* dev, char* port_name, int *port_id)
   }
   IF_ERR_EXIT(((err = snd_seq_create_simple_port(*seq_handle, port_name, SND_SEQ_PORT_CAP_READ|SND_SEQ_PORT_CAP_SUBS_READ, SND_SEQ_PORT_TYPE_MIDI_GENERIC)) < 0), (stderr, "cannot open audio device (%s)\n",  snd_strerror (err)))
 
+  dbg_printf("port ok (%d)", err);
   *port_id = err;
   dbg_printf("port %d\n", *port_id);
   //IF_ERR_EXIT(((err = snd_seq_connect_to(*seq_handle, *port_id, SND_SEQ_CLIENT_SYSTEM, SND_SEQ_PORT_SYSTEM_ANNOUNCE)) < 0), (stderr, "snd_seq_subscribe_to() failed: %s\n", snd_strerror(err)))
@@ -183,7 +184,7 @@ int get_velocity(int key, float harmonic_pwr)
 
 int main (int argc, char *argv[])
 {
-  int i, count, err, fd, verbose = 0, port_id;
+  int i, count, err, fin, fd, verbose = 0, port_id;
   snd_pcm_t *pcm_stream;
   snd_seq_t *seq_stream;
   unsigned int samplerate = 48000, frames = 1024, channels = 2;
@@ -211,7 +212,7 @@ int main (int argc, char *argv[])
           break;
         case 'i':
           audio_in = argv[++i];
-	  dbg_printf("audio in %s\n", audio_in);
+	  dbg_printf("audio file in %s\n", audio_in);
           break;
         case 'o':
           midi_out = argv[++i];
@@ -243,12 +244,15 @@ int main (int argc, char *argv[])
     }
   }
   
-  IF_ERR(((fd = open(fname, O_CREAT | O_WRONLY, 0666)) < 0), ("Not recording\n"), ;)
+  IF_ERR(((fin = open(audio_in, O_RDONLY)) < 0), ("Unable to read\n"), ;)
+  IF_ERR(((fd = open(fname, O_CREAT | O_WRONLY, 0666)) < 0), ("Unable to record\n"), ;)
   dbg_printf("Recording to file: %s\n", fname);
 
-  init_pcm(&pcm_stream, audio_in, &samplerate, &channels);
+  init_pcm(&pcm_stream, "default", &samplerate, &channels);
+  dbg_printf("rate %d chan %d frames %d input %s\n", samplerate, channels, frames, audio_in);
 
   init_seq(&seq_stream, midi_out, port_name, &port_id);
+  dbg_printf("portID %d port name %s output %s\n", port_id, port_name, midi_out);
 
   for (i = 0; i < MAX_KEY - MIN_KEY + 1; i++)
     table[i].on = FALSE;
@@ -258,7 +262,19 @@ int main (int argc, char *argv[])
 
   dbg_printf("entrata ciclo\n");
   for (i = 0; !stop; ++i) {
-    IF_ERR_EXIT(((err = snd_pcm_readi(pcm_stream, buf, frames)) != frames), (stderr, "read from audio interface failed (%s)\n", snd_strerror(err)))
+    unsigned long to_read = frames * channels * sizeof(float);
+    unsigned char *ptr = (unsigned char *) buf;
+    do {
+      unsigned long just_read = read(fin, ptr, to_read);
+      assert (just_read >= 0);
+      if (just_read == 0) {
+        // EOF
+        goto end;
+      }
+      to_read -= just_read;
+      ptr += just_read;
+    } while (to_read > 0);
+
 //RMS normalization
     rms = 0;
 
@@ -268,13 +284,11 @@ int main (int argc, char *argv[])
       rms += x[i] * x[i];
     }
     rms /= frames;
-    
     if (rms <= NOISE)
-      none = TRUE;
+	    none = TRUE;
     else
-      none = FALSE;
-    dbg_printf("energy %.4f\n", rms); 
-
+	    none = FALSE;
+    dbg_printf("energy %.4f\n", rms);
     rms = sqrt(rms);			//RMS
     for (int i = 0; i < frames; i++) {
       x[i] /= rms;
@@ -292,16 +306,17 @@ int main (int argc, char *argv[])
     if (!none) {
       index = find_pitch(dft_on_note, MAX_KEY - MIN_KEY + 1, &peak, &hrm_pwr);
       vel = get_velocity(MIN_KEY + index, hrm_pwr);
-      dbg_printf("match: key %d\n", index + MIN_KEY);
+      dbg_printf("miglior risultato: key %d val %.4f\n", index + MIN_KEY, peak);
     }
 
+    
 //output to MIDI port
     if (none) {
-      //turn off all notes
+      //no NOTE
       for (int i = 0; i < MAX_KEY - MIN_KEY + 1; i++) {
         if (table[i].on) {
 	  //send NOTEOFF event
-          dbg_printf("turning off note %d\n", MIN_KEY + i);
+          dbg_printf("turning off note %d\n", i + MIN_KEY);
           snd_seq_ev_clear(&ev);
           snd_seq_ev_set_source(&ev, port_id);
           snd_seq_ev_set_subs(&ev);
@@ -309,12 +324,12 @@ int main (int argc, char *argv[])
           ev.type = SND_SEQ_EVENT_NOTEOFF;
 
           snd_seq_event_output_direct(seq_stream, &ev);
-          table[i].on = FALSE;
+	  table[i].on = FALSE;
 	}
       }
     } else if (!(table[index].on)) {
       //send NOTEON event
-      dbg_printf("playing note %d\n", index + MIN_KEY);
+      dbg_printf("detected note %d\n", index + MIN_KEY);
       snd_seq_ev_clear(&ev);
       snd_seq_ev_set_source(&ev, port_id);
       snd_seq_ev_set_subs(&ev);
@@ -326,10 +341,9 @@ int main (int argc, char *argv[])
 
       snd_seq_event_output_direct(seq_stream, &ev);
       table[index].on = TRUE;
-    } else if (rms > 2.0 * rms_old) {	//criterio temporaneo e parametro scelto sulla base di esempi
-      //NOTEOFF needed ??
-      //send new NOTEON event
-      dbg_printf("new note %d\n", index + MIN_KEY);
+    } else if (rms > 2.0 * rms_old) {
+      //send NOTEON event
+      dbg_printf("same note pressed again (%d)\n", index + MIN_KEY);
       snd_seq_ev_clear(&ev);
       snd_seq_ev_set_source(&ev, port_id);
       snd_seq_ev_set_subs(&ev);
@@ -367,9 +381,12 @@ int main (int argc, char *argv[])
       } while (to_write > 0);
     }
   }
+end:
   if (fd >= 0)
     close(fd);
   
+  if (fin >= 0)
+    close(fd);
   //snd_seq_drain(&seq_stream)
   snd_seq_close(seq_stream);
   snd_pcm_close(pcm_stream);
