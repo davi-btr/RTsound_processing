@@ -17,9 +17,10 @@
 //int grph_display(short *vect);
 #define PI 3.141592653589793
 
-#define MIN_KEY 64
-#define MAX_KEY 72
-#define NOISE	0.001
+#define MIN_KEY 40
+#define MAX_KEY 127
+#define NOISE	0.002
+#define PREV_PEAK 0.5
 //#define N_SEQ 5		//sequenze di frames prima di scegliere nota più simile
 
 #define IF_ERR(errcode, msg, extra) if(errcode) {printf msg; extra;} 
@@ -161,7 +162,7 @@ int find_pitch(float *vec, int dim, float *val, float *cumul)
       res = i;
     }
   }
-  if ((res > 12) && (vec[res - 12] >= 0.7 * (*val))) {
+  if ((res > 12) && (vec[res - 12] >= PREV_PEAK * (*val))) {
     res -= 12;
     *val = vec[res];
   }
