@@ -2,7 +2,7 @@ CPPFLAGS=-g
 CFLAGS=-O0 -Wall -pedantic -Wno-variadic-macros
 LDLIBS=-lasound -lm
 
-PROGS= test
+PROGS= test sndprocess
 
 .PHONY: all
 all: $(PROGS)
