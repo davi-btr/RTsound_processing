@@ -68,7 +68,7 @@ static void usage(void)
 
 }
 
-float dft_arg(float freq, float* signal, unsigned int dim, float fs)
+float dft_square_arg(float freq, float* signal, unsigned int dim, float fs)
 {
 	float arg, res_real = 0, res_img = 0, th = -2.0*PI*freq/fs;
 
@@ -79,7 +79,7 @@ float dft_arg(float freq, float* signal, unsigned int dim, float fs)
 		arg += th;
 	}
 
-	return (sqrtf(powf(res_real, 2) + powf(res_img, 2)) / dim);
+	return (powf(res_real, 2) + powf(res_img, 2)) / dim;
 }
 
 int find_pitch(float *vec, int dim, float *val, float *cumul)
@@ -102,7 +102,7 @@ int find_pitch(float *vec, int dim, float *val, float *cumul)
 	//energy associated with fundamental frequency
 	*cumul = 0;
 	for (int i = res; i < dim; i += 12) {
-		*cumul += vec[res]*vec[res];
+		*cumul += vec[res];
 	}
 	*cumul /= dim;
 
@@ -182,9 +182,8 @@ int main (int argc, char *argv[])
   
   midi_stream_t seq = {NULL, NULL, NULL, NULL, 0, OUTPUT, 0};
   
-  pcm_init(&sett);
-
-  midi_init(&seq);
+  IF_ERR_EXIT(((err = pcm_init(&sett)) < 0), (stderr, "Unable to capture\n"))
+  IF_ERR_EXIT(((err = midi_init(&seq)) < 0), (stderr, "Unable to open MIDI sequencer\n"))
   dbg_printf("portID %d port name %s output %s\n", seq.portid, seq.portname, midi_out);
 
   for (i = 0; i < MAX_KEY - MIN_KEY + 1; i++)
@@ -213,7 +212,7 @@ int main (int argc, char *argv[])
 
     for (int i = 0; i < frames; i++) {
       x[i] = buf[i*channels];
-      //saturation check ??
+      //saturation check
       rms += x[i] * x[i];
     }
     rms /= frames;
@@ -221,15 +220,15 @@ int main (int argc, char *argv[])
 	    none = TRUE;
     else
 	    none = FALSE;
-    dbg_printf("energy %.4f\n", rms);
     rms = sqrt(rms);			//RMS
+    dbg_printf("rms %.4f\n", rms);
     for (int i = 0; i < frames; i++) {
       x[i] /= rms;
     }
 
     //fft_real(arg, phase, frames);		//FFT
     for (int i = MIN_KEY; i <= MAX_KEY; i++) {
-      dft_on_note[i-MIN_KEY] = dft_arg(MIDI_freq[i], x, frames, samplerate);
+      dft_on_note[i-MIN_KEY] = dft_square_arg(MIDI_freq[i], x, frames, samplerate);
     }
 
 //pitch detection, single note only
