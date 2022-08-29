@@ -36,19 +36,19 @@ typedef struct midi_struct {
 	//client name, queue tempo, etc... to be handled
 } midi_stream_t;
 
-void pcm_init(pcm_stream_t*);
+int pcm_init(pcm_stream_t*);
 
-void pcm_capture(pcm_stream_t*);
+int pcm_capture(pcm_stream_t*);
 
-void pcm_play(pcm_stream_t*);
+int pcm_play(pcm_stream_t*);
 
-void pcm_end(pcm_stream_t*);
+int pcm_end(pcm_stream_t*);
 
-void midi_init(midi_stream_t*);
+int midi_init(midi_stream_t*);
 
-void midi_noteon(midi_stream_t*, int, int, int);
+int midi_noteon(midi_stream_t*, int, int, int);
 
-void midi_noteoff(midi_stream_t*, int, int);
+int midi_noteoff(midi_stream_t*, int, int);
 
-void midi_end(midi_stream_t*);
+int midi_end(midi_stream_t*);
 

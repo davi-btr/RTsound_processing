@@ -14,7 +14,7 @@
 #define dbg_printf(args...)
 #endif
 
-void pcm_init(pcm_stream_t *settings)
+int pcm_init(pcm_stream_t *settings)
 {
 	int err;
 	snd_pcm_hw_params_t *hw_params;
@@ -59,9 +59,11 @@ void pcm_init(pcm_stream_t *settings)
 	IF_ERR_EXIT(snd_pcm_prepare(settings->handle), "cannot prepare audio interface (%s)\n")
 
 	dbg_printf("pcm set!\n");
+	
+	return err;
 }
 
-void pcm_capture(pcm_stream_t *stream)
+int pcm_capture(pcm_stream_t *stream)
 {
 	int err;
 
@@ -75,9 +77,11 @@ void pcm_capture(pcm_stream_t *stream)
 		fprintf(stderr, "read from audio interface failed (%s)\n", snd_strerror(err));
 		exit(1);
 	}
+	
+	return err;
 }
 
-void pcm_play(pcm_stream_t *stream)
+int pcm_play(pcm_stream_t *stream)
 {
 	int err;
 	
@@ -86,18 +90,22 @@ void pcm_play(pcm_stream_t *stream)
 	} else {
 		IF_ERR((snd_pcm_writen(stream->handle, (void**)&(stream->buffer), stream->frames)), "write to audio interface failed (%s)\n", snd_pcm_prepare(stream->handle))
 	}
+	
+	return err;
 }
 
-void pcm_end(pcm_stream_t *stream)
+int pcm_end(pcm_stream_t *stream)
 {
 	int err;
 
 	IF_ERR((snd_pcm_drain(stream->handle)), "retention of residual data failed (%s)\n", snd_pcm_drop(stream->handle))
 
 	snd_pcm_close(stream->handle);
+
+	return err;
 }
 
-void midi_init(midi_stream_t* seq)
+int midi_init(midi_stream_t* seq)
 {//snd_seq_t **seq_handle, char* dev, char* port_name, int *port_id
 	int err;
   
@@ -132,11 +140,13 @@ void midi_init(midi_stream_t* seq)
 	dbg_printf("port %d\n", seq->portid);
 	//IF_ERR_EXIT(((err = snd_seq_connect_to(*seq_handle, *port_id, SND_SEQ_CLIENT_SYSTEM, SND_SEQ_PORT_SYSTEM_ANNOUNCE)) < 0), (stderr, "snd_seq_subscribe_to() failed: %s\n", snd_strerror(err)))
 	//IF_ERR((snd_seq_connect_to(seq->handle, seq->portid, SND_SEQ_CLIENT_SYSTEM, SND_SEQ_PORT_SYSTEM_ANNOUNCE)), "snd_seq_subscribe_to() failed: %s\n", (dbg_printf("")))
-  
+
+	return err;
 }
 
-void midi_noteon(midi_stream_t* seq, int chan, int key, int vel)
+int midi_noteon(midi_stream_t* seq, int chan, int key, int vel)
 {
+	int err;
 	snd_seq_event_t ev;
 	
 	snd_seq_ev_clear(&ev);
@@ -148,11 +158,14 @@ void midi_noteon(midi_stream_t* seq, int chan, int key, int vel)
 	ev.data.note.note = key;
 	ev.data.note.velocity = vel;
 
-	snd_seq_event_output_direct(seq->handle, &ev);
+	err = snd_seq_event_output_direct(seq->handle, &ev);
+
+	return err;
 }
 
-void midi_noteoff(midi_stream_t* seq, int chan, int key)
+int midi_noteoff(midi_stream_t* seq, int chan, int key)
 {
+	int err;
 	snd_seq_event_t ev;
 	
 	snd_seq_ev_clear(&ev);
@@ -161,12 +174,18 @@ void midi_noteoff(midi_stream_t* seq, int chan, int key)
 	snd_seq_ev_set_direct(&ev);
 	ev.type = SND_SEQ_EVENT_NOTEOFF;
 
-	snd_seq_event_output_direct(seq->handle, &ev);
+	err = snd_seq_event_output_direct(seq->handle, &ev);
+
+	return err;
 }
 
-void midi_end(midi_stream_t *seq)
+int midi_end(midi_stream_t *seq)
 {
-	snd_seq_close(seq->handle);
+	int err;
+
+	err = snd_seq_close(seq->handle);
+
+	return err;
 }
 
 

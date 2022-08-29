@@ -101,7 +101,7 @@ int find_pitch(float *vec, int dim, float *val, float *cumul)
 		*val = vec[res];
 	}
 
-	//energy associated with fundamental frequency
+	//CORREGGERE CALCOLO
 	*cumul = 0;
 	for (int i = res; i < dim; i += 12) {
 		*cumul += vec[res];

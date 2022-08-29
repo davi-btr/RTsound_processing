@@ -214,9 +214,9 @@ int main (int argc, char *argv[])
 		if (rms <= NOISE_RMS) {
 			//no detection
 			last_note = 0;
-			if (new_note) {
+			if (note_detec) {
 				printf("possibly missed a note\n");
-				note_detect = FALSE;
+				note_detec = FALSE;
 			}
 			//turn off previous notes, if any
 			for (int i = 0; i < MAX_KEY - MIN_KEY + 1; i++)
@@ -232,14 +232,14 @@ int main (int argc, char *argv[])
 		}
 
 		//to avoid computations
-		if (!(new_note) && rms < GAIN * rms_old && rms_old > NOISE_RMS) {
+		if (!(note_detec) && rms < GAIN * rms_old && rms_old > NOISE_RMS) {
 			//same note as before
 			dbg_printf("same note\n");
 			rms_old = rms;
 			continue;
 		}
 		
-		note_detect = TRUE;
+		note_detec = TRUE;
 		
 		for (int i = 0; i < frames; i++) {
 			//rms normalization
@@ -273,7 +273,7 @@ int main (int argc, char *argv[])
 			table[index].on = TRUE;
 		}
 		
-		note_detect = FALSE;
+		note_detec = FALSE;
 
 		//output to MIDI port
 		midi_noteon(&seq, 0, index + MIN_KEY, vel);
