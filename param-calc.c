@@ -1,4 +1,6 @@
 /*
+  * param-calc.c
+  *
   * Calculate parameters required by main for each MIDI note
   * 
   *
@@ -18,10 +20,11 @@
 //#include "fft.h"
 #define PI 3.141592653589793
 
-#define MIN_KEY 69
-#define MAX_KEY 105
+#define MIN_KEY 1
+#define MAX_KEY 127
 #define SILENCE	0.001
-#define N_REP	5
+#define N_REP	3
+#define N_WIN	2	//mantenere
 
 #define IF_ERR(errcode, msg, extra) if(errcode) {printf msg; extra;} 
 #define IF_ERR_EXIT(errcode, msg) if(errcode) {fprintf msg; exit(1);} 
@@ -39,7 +42,7 @@ float MIDI_freq[128] = {8.1758, 8.6620, 9.1770, 9.7227, 10.3009, 10.9134, 11.562
 
 //int stop = 0;
 
-#define DEBUG
+//#define DEBUG
 
 #ifdef DEBUG
 #define dbg_printf printf
@@ -86,33 +89,6 @@ float dft_square_arg(float freq, float* signal, unsigned int dim, float fs)
 	return (powf(res_real, 2) + powf(res_img, 2)) / dim;
 }
 /*
-int find_pitch(float *vec, int dim, float *fmin, float *fmax, float *harmonic)
-{
-        int res = 0;
-
-        *val = vec[0];
-
-        for (int i = 0; i < dim; i++) {
-                if (vec[i] >= *val) {
-                        *val = vec[i];
-                        res = i;
-                }
-        }
-        if ((res > 12) && (vec[res - 12] >= PREV_PEAK * (*val))) {
-                res -= 12;
-                *val = vec[res];
-        }
-
-        //energy associated with fundamental frequency
-        *cumul = 0;
-        for (int i = res; i < dim; i += 12) {
-                *cumul += vec[res];
-        }
-        *cumul /= dim;
-
-        return res;
-}
-
 int get_velocity(int key, float harmonic_pwr)
 {
   return 127;
@@ -123,8 +99,10 @@ float harm_pwr(float *vect, int dim, int frames)
         //power associated with fundamental frequency and harmonics
         float res = 0;
 
+	//dbg_printf("frames %d \n", frames);
         for (int i = 0; i < dim; i ++) {
                 res += vect[i];
+		dbg_printf("cumul %.4f\n", res);
         }
         res /= frames;
 
@@ -133,37 +111,37 @@ float harm_pwr(float *vect, int dim, int frames)
 
 int main (int argc, char *argv[])
 {
-  int count, fin;
+  int count, i, fin;
   unsigned int samplerate = 48000, frames = 1024, channels = 2;
-  char fname[18] = "noteXXX-127-0.dat";
+  char fname[18] = "noteXXX-127-6.dat";
   float *buf, *x, oc_r[N_REP], hrm_p[N_REP];
-  float  octave_ratio_keys[MAX_KEY - MIN_KEY + 1], harm_pwr_keys[MAX_NOTE - MIN_NOTE + 1];
+  float  octave_ratio_keys[MAX_KEY - MIN_KEY + 1], harm_pwr_keys[MAX_KEY - MIN_KEY + 1];
   //note_info_t table[MAX_KEY - MIN_KEY + 1];
   float dft_vect[MAX_KEY - MIN_KEY + 1], rms = 0;
 
-  for (int n = 0; n < N_REP; n++) {
-    oc_r[n] = 0;
-    hrm_p[n] = 0;
+  for (int j = 0; j < N_REP; j++) {
   }
-
-  IF_ERR(((fin = open(fname, O_RDONLY)) < 0), ("Unable to read %s\n", fname), ;)
-  //IF_ERR(((fd = open(fname, O_CREAT | O_WRONLY, 0666)) < 0), ("Unable to record\n"), ;)
 
   IF_ERR_EXIT(((buf = malloc(sizeof(float) * frames * channels)) == 0), (stderr, "failed memory allocation\n"))
   IF_ERR_EXIT(((x = malloc(sizeof(float) * frames)) == 0), (stderr, "failed memory allocation\n"))
 
-  for (int j = MIN_KEY; j <= MAX_KEY; j++) {
-    float fr = MIDI_freq[j];
+  for (int n = MIN_KEY; n <= MAX_KEY; n++) {
+    float fr = MIDI_freq[n];
+    dbg_printf("key %d freq %.4f\n", n, fr);
 
-    octave_ratio_keys[j] = 0;
-    harm_pwr_keys[j] = 0;
+    octave_ratio_keys[n - MIN_KEY] = 0;
+    harm_pwr_keys[n - MIN_KEY] = 0;
+    i = 0;
 
-    fname[4] = (char)(j / 100 + 0x30);
-    fname[5] = (char)((j%100) / 10 + 0x30);
-    fname[6] = (char)(j % 10 + 0x30);
+    fname[4] = (char)(n / 100 + 0x30);
+    fname[5] = (char)((n%100) / 10 + 0x30);
+    fname[6] = (char)(n % 10 + 0x30);
     //fname[8] = (char)(vels[0] / 100 + 0x30);
     //fname[9] = (char)((vels[0]%100) / 10 + 0x30);
     //fname[10] = (char)(vels[0] % 10 + 0x30);
+    //dbg_printf("file %s\n", fname);
+    IF_ERR(((fin = open(fname, O_RDONLY)) < 0), ("Unable to read %s\n", fname), ;)
+  //IF_ERR(((fd = open(fname, O_CREAT | O_WRONLY, 0666)) < 0), ("Unable to record\n"), ;)
 
 
     while (i < N_REP) {
@@ -191,11 +169,13 @@ int main (int argc, char *argv[])
       dbg_printf("energy %.4f\n", rms);
       if (rms < SILENCE) {
 	      count = 0;
+	      oc_r[i] = 0;
+	      hrm_p[i] = 0;
 
 	      continue;
       }
 
-      if (count >= 2)
+      if (count >= N_WIN)
 
 	      continue;
 
@@ -207,42 +187,50 @@ int main (int argc, char *argv[])
 
       int octaves = 0;
 
-      for (int j = 90; j <= MAX_KEY; j += 12) { 
+      for (int j = n; j <= MAX_KEY; j += 12) { 
         dft_vect[octaves] = dft_square_arg(MIDI_freq[j], x, frames, samplerate);
         octaves++;
       }
 
-      oc_r[i] += dft_square_arg(fr, x, frames, samplerate) / dft_square_arg(2 * fr, frames, samplerate);
-      hrm_p[i] = harm_pwr(dft_vect, octaves, frames);
+      //dbg_printf("octaves %d\n", octaves);
+      oc_r[i] += dft_square_arg(fr, x, frames, samplerate) / dft_square_arg(2 * fr, x, frames, samplerate);
+
+      float tmp = harm_pwr(dft_vect, octaves, frames);
+
+      //dbg_printf("tmp %.4f\n", tmp);
+      hrm_p[i] += tmp;
       dbg_printf("octave ratio  %.4f harm pwr %.4f\n", oc_r[i], hrm_p[i]);
 
       oc_r[i] /= count;
       hrm_p[i] /= count;
       i += (count - 1);
-
-    }
-    
-    for (int i = 0; i < N_REP; i++) {
     }
 
-    octave_ratio_keys[j] /= N_SEQ;
-    harm_pwr_keys[j] /= N_SEQ;
-    dbg_printf("oct ratio %.4f harm pwr %.4f\n", octave_ratio_keys[j], harm_pwr_keys[j]);
+    for (int j = 0; j < N_REP; j++) {
+      octave_ratio_keys[n - MIN_KEY] += oc_r[j];
+      harm_pwr_keys[n - MIN_KEY] += hrm_p[j];
+    }
+    octave_ratio_keys[n - MIN_KEY] /= N_REP;
+    harm_pwr_keys[n - MIN_KEY] /= N_REP;
+    dbg_printf("oct %.4f harm pwr %.4f\n", octave_ratio_keys[n - MIN_KEY], harm_pwr_keys[n - MIN_KEY]);
+
+end:
+    if (fin >= 0) {
+      close(fin);
+      //dbg_printf("closing %s\n", fname);
+    }
+
   }
 
   printf("OCTAVE RATIO FROM %d TO %d\n", MIN_KEY, MAX_KEY);
-  for (int j = MIN_NOTE; j <= MAX_NOTE; j++) {
-    printf("%.4f, \n", octave_ratio_keys[j]);
+  for (int j = MIN_KEY; j <= MAX_KEY; j++) {
+    printf("%.4f, ", octave_ratio_keys[j - MIN_KEY]);
   }
-  printf("HARMONIC POWER START FROM %d TO %d\n", MIN_KEY, MAX_KEY);
-  for (int j = MIN_NOTE; j <= MAX_NOTE; j++) {
-    printf("%.4f, \n", harm_pwr_keys[j]);
+  printf("\nHARMONIC POWER START FROM %d TO %d\n", MIN_KEY, MAX_KEY);
+  for (int j = MIN_KEY; j <= MAX_KEY; j++) {
+    printf("%.4f, ", harm_pwr_keys[j - MIN_KEY]);
   }
   printf("\n");
-
-end:
-  if (fin >= 0)
-    close(fin);
 
   exit(0);
 }
