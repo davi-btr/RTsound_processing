@@ -1,5 +1,6 @@
 /*
  * rawnotes.c
+ * Adapted from other repository
  *
  * Author:	Davide Bettarini
  * Date:	02/07/2022
