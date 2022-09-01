@@ -106,7 +106,7 @@ int pcm_end(pcm_stream_t *stream)
 }
 
 int midi_init(midi_stream_t* seq)
-{//snd_seq_t **seq_handle, char* dev, char* port_name, int *port_id
+{
 	int err;
   
 	dbg_printf("init seq\n");
