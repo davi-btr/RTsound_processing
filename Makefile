@@ -1,10 +1,11 @@
 CC=gcc
 CFLAGS=-g -Wall
 
+SRCHOME=./src/
 HEADHOME=-I./include/
 LIBHOME=-L./libs
 LDFLAGS=-lsndutils -lfourier -laudiostream -lasound -lm
-SRCS=sndprocess.c sndutils.c fourier.c audiostream.c
+SRCS=$(SRCHOME)sndprocess.c $(SRCHOME)sndutils.c $(SRCHOME)fourier.c $(SRCHOME)audiostream.c
 OBJS=$(SRCS:.c=.o)
 PROGS=sndprocess
 
