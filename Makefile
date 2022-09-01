@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-g -Wall # -pedantic -Wno-variadic-macros
+CFLAGS=-g -Wall
 
 HEADHOME=-I./include/
 LIBHOME=-L./libs
