@@ -120,13 +120,10 @@ int main (int argc, char *argv[])
   int count, i, fin;
   unsigned int samplerate = 48000, frames = 1024, channels = 2;
   char fname[26] = "../data/noteXXX-127-6.dat";
-  float *buf, *x, oc_r[N_REP], hrm_p[N_REP];
-  float  octave_ratio_keys[MAX_KEY - MIN_KEY + 1], harm_pwr_keys[MAX_KEY - MIN_KEY + 1];
+  float *buf, *x, oc_r[N_REP], hrm_p[N_REP], v_r[N_REP];
+  float  octave_ratio_keys[MAX_KEY - MIN_KEY + 1], harm_pwr_keys[MAX_KEY - MIN_KEY + 1], velocity_ref_keys[MAX_KEY - MIN_KEY + 1];
   //note_info_t table[MAX_KEY - MIN_KEY + 1];
   float rms = 0;
-
-  for (int j = 0; j < N_REP; j++) {
-  }
 
   IF_ERR_EXIT(((buf = malloc(sizeof(float) * frames * channels)) == 0), (stderr, "failed memory allocation\n"))
   IF_ERR_EXIT(((x = malloc(sizeof(float) * frames)) == 0), (stderr, "failed memory allocation\n"))
@@ -171,8 +168,9 @@ int main (int argc, char *argv[])
         x[j] = buf[j*channels];
         rms += x[j] * x[j];
       }
-      rms = sqrt(rms / frames);
-      //dbg_printf("energy %.4f\n", rms);
+      rms /= frames;
+      //dbg_printf("sqrms %.4f\n", rms);
+      rms = sqrt(rms);
       if (rms < SILENCE) {
 	      count = 0;
 	      oc_r[i] = 0;
@@ -201,11 +199,14 @@ int main (int argc, char *argv[])
       */
 
       //dbg_printf("octaves %d\n", octaves);
+      if (count == 1)
+        v_r[i] = rms;
+
       oc_r[i] += dft_sqr_arg(fr, x, frames, samplerate) / dft_sqr_arg(2 * fr, x, frames, samplerate);
 
       //dbg_printf("tmp %.4f\n", tmp);
       hrm_p[i] += harm_pwr_calc(MIDI_freq[n], x, frames, samplerate);
-      dbg_printf("octave ratio  %.4f harm pwr %.4f\n", oc_r[i], hrm_p[i]);
+      dbg_printf("ref %.4f octave ratio  %.4f harm pwr %.4f\n", v_r[i], oc_r[i], hrm_p[i]);
 
       oc_r[i] /= count;
       hrm_p[i] /= count;
@@ -213,12 +214,14 @@ int main (int argc, char *argv[])
     }
 
     for (int j = 0; j < N_REP; j++) {
+      velocity_ref_keys[n - MIN_KEY] += v_r[j];
       octave_ratio_keys[n - MIN_KEY] += oc_r[j];
       harm_pwr_keys[n - MIN_KEY] += hrm_p[j];
     }
+    velocity_ref_keys[n - MIN_KEY] /= N_REP;
     octave_ratio_keys[n - MIN_KEY] /= N_REP;
     harm_pwr_keys[n - MIN_KEY] /= N_REP;
-    dbg_printf("oct %.4f harm pwr %.4f\n", octave_ratio_keys[n - MIN_KEY], harm_pwr_keys[n - MIN_KEY]);
+    dbg_printf("ref %.4f oct %.4f harm pwr %.4f\n", velocity_ref_keys[n - MIN_KEY], octave_ratio_keys[n - MIN_KEY], harm_pwr_keys[n - MIN_KEY]);
 
 end:
     if (fin >= 0) {
@@ -228,7 +231,11 @@ end:
 
   }
 
-  printf("OCTAVE RATIO FROM %d TO %d\n", MIN_KEY, MAX_KEY);
+  printf("VELOCITY REFERENCE FROM %d TO %d\n", MIN_KEY, MAX_KEY);
+  for (int j = MIN_KEY; j <= MAX_KEY; j++) {
+    printf("%.4f, ", velocity_ref_keys[j - MIN_KEY]);
+  }
+  printf("\nOCTAVE RATIO FROM %d TO %d\n", MIN_KEY, MAX_KEY);
   for (int j = MIN_KEY; j <= MAX_KEY; j++) {
     printf("%.4f, ", octave_ratio_keys[j - MIN_KEY]);
   }

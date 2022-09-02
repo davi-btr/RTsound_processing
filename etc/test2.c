@@ -26,7 +26,7 @@
 #define IF_ERR(errcode, msg, extra) if(errcode) {printf msg; extra;} 
 #define IF_ERR_EXIT(errcode, msg) if(errcode) {fprintf msg; exit(1);} 
 
-//#define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 #define dbg_printf printf
@@ -230,7 +230,8 @@ int main (int argc, char *argv[])
       printf("detected note %d\n", index + MIN_KEY);
     }
 
-    current.vel = get_velocity(current.key, sqrms, harm_pwr);
+    current.vel = get_velocity(current.key, (1 - harm_pwr_old) * sqrms);
+    dbg_printf("vel %d\n", current.vel);
     //output to MIDI port
     note_search = FALSE;
     midi_noteon(&seq, 0, current.key, current.vel);
