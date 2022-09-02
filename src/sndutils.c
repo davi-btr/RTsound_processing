@@ -6,10 +6,12 @@
 */
 
 #include <stdlib.h>
+#include <math.h>
 
 #include "sndutils.h"
 #include "fourier.h"
 
+#define VELOCITY_STEP	1.03552808f
 
 int get_index(float *vec, unsigned int dim, float *val)
 {	//finds max peak
@@ -53,8 +55,30 @@ float harm_pwr_calc(float freq, float* signal, int dim, double fs)
 	return res;
 }
 
-int get_velocity(int key, float sqrms, float harm_pwr)
+int get_velocity(int key, float sqrms)
 {
-	return 127;
+	float res, ratio, step;
+
+	step = powf(VELOCITY_STEP, 10);
+	ratio = velocity_reference[key] / sqrms;
+	res = 127;
+
+	do {
+		res -= 10;
+		ratio /= step;
+	} while (ratio > 1.0);
+
+	ratio *= step;
+	res += 10;
+
+	do {
+		res --;
+		ratio /= VELOCITY_STEP;
+	} while (ratio > 1.0);
+
+	ratio *= VELOCITY_STEP;
+	res++;
+
+	return res;
 }
 
