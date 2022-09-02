@@ -14,3 +14,10 @@ To confirm the note is correct, a check is performed on the signal to verify tha
 All parameters have been calculated for each note separately and saved in memory before compile-time. To compute them a synthesizer has been used.
 
 Notes are handled according to the MIDI protocol (keys 0-127, velocity 0-127). When a new note is detected, a new MIDI event is generated and is sent to a sequencer, available for other applications to use.
+
+Dependancies:
+The project relies on ALSA libraries for PCM stream and MIDI sequencer.
+to install:
+> sudo apt-get install libasound-dev
+
+Other libraries may be used for that purpose (for any reason...). In that case only library "audiostream" is to be modified, since it exports the ALSA interface to the main
