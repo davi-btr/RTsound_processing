@@ -1,7 +1,7 @@
 /*
- *sndutils.c
+ * sndutils.c
  *
- *library for sndprocess
+ * Library for sndprocess
  *
 */
 
@@ -11,7 +11,7 @@
 #include "sndutils.h"
 #include "fourier.h"
 
-#define VELOCITY_STEP	1.03552808f
+#define VELOCITY_STEP	1.03552808f		//precalculated 
 
 int get_index(float *vec, unsigned int dim, float *val)
 {	//finds max peak
