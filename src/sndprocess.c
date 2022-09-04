@@ -49,7 +49,7 @@ static void usage(void)
 	printf("    -h			: display this help window\n");
 	printf("    -v			: verbose mode\n");
 	printf("    -i device-id	: ALSA input PCM device (leave blank for 'default')\n");
-	printf("    -o midiout		: ALSA output MIDI  (leave blank for 'default'\n");
+	printf("    -o midiout		: ALSA output MIDI sequencer (leave blank for 'default'\n");
 	printf("    -p portname		: client MIDI port (leave blank for 'default')\n");
 	printf("    -O filename		: raw samples recording file\n");
 	printf("    -c channels		: number of input channels\n");
@@ -93,7 +93,7 @@ int main (int argc, char *argv[])
 			case 'o':
 				midi_out = argv[++i];
 				if (verbose)
-					printf("midi out %s\n", midi_out);
+					printf("sequencer out %s\n", midi_out);
 				break;
 			case 'p':
 				portname = argv[++i];
