@@ -11,7 +11,7 @@
 #include "sndutils.h"
 #include "fourier.h"
 
-#define VELOCITY_STEP	1.03552808f		//precalculated 
+#define VELOCITY_STEP	1.03552808f
 
 int get_index(float *vec, unsigned int dim, float *val)
 {	//finds max peak
@@ -35,7 +35,7 @@ int get_index(float *vec, unsigned int dim, float *val)
 }
 
 float harm_pwr_calc(float freq, float* signal, int dim, double fs)
-{	//selects harmonics and computes cumulative energy
+{	//selects harmonics
 	int count = 0;
 	float res, harmonics[(int)(1 + MIDI_freq[MAX_KEY] / freq)], fr = freq;
 
@@ -46,7 +46,7 @@ float harm_pwr_calc(float freq, float* signal, int dim, double fs)
 	}
 
 	res = 0;
-
+	//harmonics cumulative power
 	for (int i = 0; i < count; i++) {
 		res += harmonics[i];
 	}
@@ -56,7 +56,7 @@ float harm_pwr_calc(float freq, float* signal, int dim, double fs)
 }
 
 int get_velocity(int key, float sqrms)
-{
+{	//sqrms_at_velocity(V) = VELOCITY_STEP * sqrms_at_velocity(V - 1)
 	float res, ratio, step;
 
 	step = powf(VELOCITY_STEP, 10);
