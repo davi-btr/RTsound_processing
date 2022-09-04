@@ -6,7 +6,7 @@
 #define IF_ERR(op, msg, extra) if((err = op) < 0) {fprintf(stderr, msg, snd_strerror(err)); extra;} 
 #define IF_ERR_EXIT(op, msg) if ((err = op) < 0) {fprintf(stderr, msg, snd_strerror(err)); exit(1);} 
 
-#define DEBUG
+//#define DEBUG
 
 #ifdef DEBUG
 #define dbg_printf printf
@@ -29,34 +29,34 @@ int pcm_init(pcm_stream_t *settings)
 
 	dbg_printf("%s %d %d %d %d\n", settings->audiodev, settings->direction, settings->samplerate, settings->frames, settings->channels);
 
-	IF_ERR_EXIT(snd_pcm_open(&(settings->handle), settings->audiodev, settings->direction, 0), "cannot open audio device (%s)\n")
+	IF_ERR_EXIT(snd_pcm_open(&(settings->handle), settings->audiodev, settings->direction, 0), "PCM stream: cannot open audio device (%s)\n")
 
-	IF_ERR_EXIT((snd_pcm_hw_params_malloc(&hw_params)), "cannot allocate hardware parameter structure (%s)\n")
+	IF_ERR_EXIT((snd_pcm_hw_params_malloc(&hw_params)), "PCM stream: cannot allocate hardware parameter structure (%s)\n")
 
-	IF_ERR_EXIT((snd_pcm_hw_params_any(settings->handle, hw_params)), "cannot initialize hardware parameter structure (%s)\n")
+	IF_ERR_EXIT((snd_pcm_hw_params_any(settings->handle, hw_params)), "PCM stream: cannot initialize hardware parameter structure (%s)\n")
 
 	if (settings->interleaved)
 		access = SND_PCM_ACCESS_RW_INTERLEAVED;
 	else
 		access = SND_PCM_ACCESS_RW_NONINTERLEAVED;
-	IF_ERR_EXIT((snd_pcm_hw_params_set_access(settings->handle, hw_params, access)), "cannot set acces type (%s)\n")
+	IF_ERR_EXIT((snd_pcm_hw_params_set_access(settings->handle, hw_params, access)), "PCM stream: cannot set acces type (%s)\n")
 
 
-	IF_ERR_EXIT((snd_pcm_hw_params_set_format(settings->handle, hw_params, SND_PCM_FORMAT_FLOAT_LE)), "cannot set sample format (%s)\n")
+	IF_ERR_EXIT((snd_pcm_hw_params_set_format(settings->handle, hw_params, SND_PCM_FORMAT_FLOAT_LE)), "PCM stream: cannot set sample format (%s)\n")
 
-	IF_ERR_EXIT((snd_pcm_hw_params_set_rate_near(settings->handle, hw_params, &(settings->samplerate), 0)), "cannot set sample rate (%s)\n")
+	IF_ERR_EXIT((snd_pcm_hw_params_set_rate_near(settings->handle, hw_params, &(settings->samplerate), 0)), "PCM stream: cannot set sample rate (%s)\n")
 
-	dbg_printf("Got actual rate: %u\n", settings->samplerate);
+	printf("PCM init: actual rate: %u\n", settings->samplerate);
 
-	IF_ERR_EXIT((snd_pcm_hw_params_set_channels(settings->handle, hw_params, settings->channels)), "cannot set channel count (%s)\n")
+	IF_ERR_EXIT((snd_pcm_hw_params_set_channels(settings->handle, hw_params, settings->channels)), "PCM stream: cannot set channel count (%s)\n")
 
 	//set_buffer_size_near() FRAMES
 
-	IF_ERR_EXIT((snd_pcm_hw_params(settings->handle, hw_params)), "cannot set parameters (%s)\n")
+	IF_ERR_EXIT((snd_pcm_hw_params(settings->handle, hw_params)), "PCM stream: cannot set parameters (%s)\n")
 
 	snd_pcm_hw_params_free(hw_params);
 
-	IF_ERR_EXIT(snd_pcm_prepare(settings->handle), "cannot prepare audio interface (%s)\n")
+	IF_ERR_EXIT(snd_pcm_prepare(settings->handle), "PCM stream: cannot prepare audio interface (%s)\n")
 
 	dbg_printf("pcm set!\n");
 	
@@ -74,7 +74,7 @@ int pcm_capture(pcm_stream_t *stream)
 	}
 
 	if (err != (stream->frames)) {
-		fprintf(stderr, "read from audio interface failed (%s)\n", snd_strerror(err));
+		fprintf(stderr, "PCM stream: read from audio interface failed (%s)\n", snd_strerror(err));
 		exit(1);
 	}
 	
@@ -86,9 +86,9 @@ int pcm_play(pcm_stream_t *stream)
 	int err;
 	
 	if (stream->interleaved) {
-		IF_ERR((snd_pcm_writei(stream->handle, stream->buffer, stream->frames)), "write to audio interface failed (%s)\n", snd_pcm_prepare(stream->handle))
+		IF_ERR((snd_pcm_writei(stream->handle, stream->buffer, stream->frames)), "PCM stream: write to audio interface failed (%s)\n", snd_pcm_prepare(stream->handle))
 	} else {
-		IF_ERR((snd_pcm_writen(stream->handle, (void**)&(stream->buffer), stream->frames)), "write to audio interface failed (%s)\n", snd_pcm_prepare(stream->handle))
+		IF_ERR((snd_pcm_writen(stream->handle, (void**)&(stream->buffer), stream->frames)), "PCM stream: write to audio interface failed (%s)\n", snd_pcm_prepare(stream->handle))
 	}
 	
 	return err;
@@ -98,7 +98,7 @@ int pcm_end(pcm_stream_t *stream)
 {
 	int err;
 
-	IF_ERR((snd_pcm_drain(stream->handle)), "retention of residual data failed (%s)\n", snd_pcm_drop(stream->handle))
+	IF_ERR((snd_pcm_drain(stream->handle)), "PCM stream: collection of residual data failed (%s)\n", snd_pcm_drop(stream->handle))
 
 	snd_pcm_close(stream->handle);
 
@@ -116,7 +116,7 @@ int midi_init(midi_stream_t* seq)
 		seq->mididev = str;
 	}
 	dbg_printf("seq init with %s\n", seq->mididev);
-	IF_ERR_EXIT((snd_seq_open(&(seq->handle), seq->mididev, seq->direction, seq->nonblocking)), "cannot open audio device (%s)\n")
+	IF_ERR_EXIT((snd_seq_open(&(seq->handle), seq->mididev, seq->direction, seq->nonblocking)), "MIDI sequencer: cannot open audio device (%s)\n")
 	dbg_printf("sequencer opened\n");
 	/*
 	if (seq->clientname == NULL) {
@@ -134,7 +134,7 @@ int midi_init(midi_stream_t* seq)
 	}
 	dbg_printf("port name (%s)\n", seq->portname);
 	//port type also SND_SEQ_PORT_TYPE_APPLICATION
-	IF_ERR_EXIT((snd_seq_create_simple_port(seq->handle, seq->portname, seq->direction, SND_SEQ_PORT_TYPE_MIDI_GENERIC)), "cannot open audio device (%s)\n")
+	IF_ERR_EXIT((snd_seq_create_simple_port(seq->handle, seq->portname, seq->direction, SND_SEQ_PORT_TYPE_MIDI_GENERIC)), "MIDI sequencer: cannot open audio device (%s)\n")
 
 	seq->portid = err;
 	dbg_printf("port %d\n", seq->portid);
@@ -188,27 +188,3 @@ int midi_end(midi_stream_t *seq)
 	return err;
 }
 
-
-/*
-int main (int argc, char *argv[])
-{
-  int err;
-  pcm_t *pcm_stream;
-  //seq_t *seq_stream;
-  unsigned int samplerate = 48000, frames = 1024, channels = 2;
-  char *audio_in = NULL;
-  float *buf, dft_on_note[10], *x;
-  //note_info_t table[MAX_KEY - MIN_KEY + 1];
-  //snd_seq_event_t ev;
-  
-  pcm_stream_t sett = {NULL, audio_in, buf, frames, samplerate, channels, CAPTURE, TRUE};
-  
-  init_pcm(&sett);
-
-  //init_seq(&seq_stream, midi_out, port_name, &port_id);
-  pcm_capture(&sett);
-  
-  //snd_seq_close(seq_stream);
-  snd_pcm_close(pcm_stream);
-}
-*/
