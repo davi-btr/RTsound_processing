@@ -12,7 +12,7 @@ typedef struct Complex
 } CPLX;
 
 float dft_sqr_arg(float freq, float* signal, unsigned int dim, float fs)
-{
+{//return square value of amplitude of the DFT at frequency 'freq' of 'signal', consisting in 'dim' samples at sampling frequency 'fs'
 	float arg, res_real = 0, res_img = 0, th = -2.0*PI*freq/fs;
 
 	arg = th;
@@ -141,46 +141,4 @@ int fft_real(float in[], float phase[], int n) //real/img ==> mag/phase
   out = NULL;
   return 1;
 }
-/*
-int main()
-{
-  #define COUNT 1024
-  float mag[COUNT];
-  //CPLX buf[COUNT] = {
-    {1.0, 0.0}, {1.0, 0.0}, {1.0, 0.0}, {1.0, 0.0},
-    {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}
-  };
-  
-  //campioni sinusoidali
-  float f_A4 = 234.75;
-  float f_sample = 48000.0;
-  float ampl = 1000.0;
-  unsigned long off = 0;
-  for (int j = 0; j < COUNT; j++) {
-    float t_secs = off++ / f_sample;
-    buf[j].real = ampl * sinf(2.0*PI*f_A4*t_secs);
-    buf[j].image = 0.0;
-    //printf("ampl %f\n", buf[j].real);
-  }
 
-  fft(buf, COUNT);
-
-  for (int i = 0; i < COUNT; i++) {
-    mag[i] = sqrt(pow(buf[i].real, 2) + pow(buf[i].image, 2));
-    mag[i] /= COUNT;
-    printf("modulo %.4f\n", mag[i]);
-  }
-
-  for (int i = 0; i < COUNT; i++)
-  {
-    if (buf[i].image >= 0.0)
-    {
-      printf("%.4f + %.4fi\n", buf[i].real, buf[i].image);
-    } else {
-      printf("%.4f - %.4fi\n", buf[i].real, fabs(buf[i].image));
-    }
-  }
-
-  return 0;
-}
-*/
