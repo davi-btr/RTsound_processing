@@ -5,9 +5,12 @@ typedef snd_seq_t midi_t;
 
 typedef enum {PLAYBACK, CAPTURE} pcm_dir_t;
 typedef enum {OUTPUT = 1, INPUT, DUPLEX} midi_dir_t;
+
 #ifndef BOOL_TYPE
 #define BOOL_TYPE
+
 typedef enum {FALSE = 0, TRUE} bool_t;
+
 #endif
 
 typedef struct pcm_struct {
