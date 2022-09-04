@@ -87,41 +87,49 @@ int main (int argc, char *argv[])
 				break;
 			case 'i':
 				audio_in = argv[++i];
-				dbg_printf("audio in %s\n", audio_in);
+				if (verbose)
+					printf("audio in %s\n", audio_in);
 				break;
 			case 'o':
 				midi_out = argv[++i];
-				dbg_printf("midi out %s\n", midi_out);
+				if (verbose)
+					printf("midi out %s\n", midi_out);
 				break;
 			case 'p':
 				portname = argv[++i];
-				dbg_printf("port %s\n", port_name);
+				if (verbose)
+					printf("port %s\n", portname);
 				break;
 			case 'O':
 				fname = argv[++i];
 				break;
 			case 'c':
 				channels = atoi(argv[++i]);
-				dbg_printf("channels %d\n", channels);
+				if (verbose)
+					printf("channels %d\n", channels);
 				break;
 			case 'r':
 				samplerate = atoi(argv[++i]);
-				dbg_printf("samplerate %d\n", samplerate);
+				if (verbose)
+					printf("samplerate %d\n", samplerate);
 				break;
 			case 'f':
 				frames = atoi(argv[++i]);
-				dbg_printf("frames %d\n", frames);
+				if (verbose)
+					printf("frames %d\n", frames);
 				break;
 			default:
 				fprintf(stderr, "invalid option\n");
 				usage();
 		}
 	}
+	
 
 	IF_ERR_EXIT(((buf = malloc(sizeof(float) * frames * channels)) == 0), (stderr, "failed memory allocation\n"))
 	IF_ERR_EXIT(((x = malloc(sizeof(float) * frames)) == 0), (stderr, "failed memory allocation\n"))
 	IF_ERR(((fd = open(fname, O_CREAT | O_WRONLY, 0666)) < 0), ("Not recording\n"), ;)
-	dbg_printf("Recording to file: %s\n", fname);
+	if (verbose)
+		printf("Recording to file: %s\n", fname);
 	//inizializzazione PCM stream e MIDI seq (details in "audiostream.h")
 	pcm_stream_t sett = {NULL, audio_in, buf, frames, samplerate, channels, CAPTURE, TRUE};
 	midi_stream_t seq = {NULL, midi_out, NULL, portname, 0, OUTPUT, 0};
@@ -252,6 +260,9 @@ int main (int argc, char *argv[])
 
 	midi_end(&seq);
 	pcm_end(&sett);
+	
+	if (verbose)
+		printf("successfully ended\n");
 	
 	exit(0);
 }
