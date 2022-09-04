@@ -1,6 +1,3 @@
-//#include <stdio.h>
-//#include <stdlib.h>
-//#include <math.h>
 #define PI 3.14159265358979
 
 float dft_sqr_arg(float, float *, unsigned int, float);
