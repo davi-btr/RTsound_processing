@@ -1,11 +1,10 @@
 /*
  * sndprocess.c
  *
- * main part of the program: audio detection, signal elaboration, pitch
- * recognition, recording
+ * main part of the program: audio detection, signal elaboration, pitch recognition, recording
  *
  *
-*/
+ */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,16 +17,16 @@
 #include "sndutils.h"
 #include "fourier.h"
 
-#define SATURATION_LEVEL	3.4e35f
+#define SATURATION_LEVEL	3.4e35f		//close to float representation limit
 #define MAX_SATUR_SAMPLES	3
-#define NOISE_SQRMS		0.02
-#define CONFIDENCE		0.9
-#define GAIN			1.5
+#define NOISE_SQRMS		0.02		//threshold on signal power
+#define CONFIDENCE		0.9		//parameter needed to identify a note
+#define GAIN			1.5		//paraemter needed to declare a new note has been pressed
 
 #define IF_ERR(errcode, msg, extra) if(errcode) {printf msg; extra;} 
 #define IF_ERR_EXIT(errcode, msg) if(errcode) {fprintf msg; exit(1);} 
 
-#define DEBUG
+//#define DEBUG
 
 #ifdef DEBUG
 #define dbg_printf printf
@@ -39,25 +38,26 @@ int stop = 0;
 
 
 void sighandler(int dum)
-{
-    stop=1;
+{	//to quit
+	stop=1;
 }
 
 static void usage(void)
-{
-  fprintf(stderr, "usage: sndprocess [options]\n");
-  fprintf(stderr, "  options:\n");
-  fprintf(stderr, "    -h		: display this help window\n");
-  fprintf(stderr, "    -v		: verbose mode\n");
-  fprintf(stderr, "    -i device-id	: ALSA input PCM device\n");
-  fprintf(stderr, "    -o port-name	: ALSA output MIDI port\n");
-  fprintf(stderr, "    -O filename	: raw data transcript file\n");
-  fprintf(stderr, "    -r samplerate	: samples acquired per second\n");
-  fprintf(stderr, "    -c channels	: number of channels\n");
-  fprintf(stderr, "    -f frames	: number of samples processed simultaneously\n");
-  fprintf(stderr, "  example:\n");
-  fprintf(stderr, "    sndprocess -r 48000 -c 1 -f 1024 -O recorded.dat\n");
-  fprintf(stderr, "    \n");
+{	//help menu
+	printf("usage: sndprocess [options]\n");
+	printf("  options:\n");
+	printf("    -h			: display this help window\n");
+	printf("    -v			: verbose mode\n");
+	printf("    -i device-id	: ALSA input PCM device (leave blank for 'default')\n");
+	printf("    -o midiout		: ALSA output MIDI  (leave blank for 'default'\n");
+	printf("    -p portname		: client MIDI port (leave blank for 'default')\n");
+	printf("    -O filename		: raw samples recording file\n");
+	printf("    -c channels		: number of input channels\n");
+	printf("    -r samplerate	: number of samples acquired per second\n");
+	printf("    -f frames		: number of samples processed in a single window\n");
+	printf("  example:\n");
+	printf("    sndprocess -r 48000 -f 1024 -i hw:0 -O recorded.dat\n");
+	printf("    \n");
 
 }
 
@@ -65,13 +65,13 @@ int main (int argc, char *argv[])
 {
 	int err, fd, port_id, saturation_count = 0, verbose = 0;
 	unsigned int samplerate = 48000, frames = 1024, channels = 2;
-	char *fname = NULL, *audio_in = NULL, *midi_out = NULL, *port_name = NULL;
+	char *fname = NULL, *audio_in = NULL, *midi_out = NULL, *portname = NULL;
 	float *x, dft_on_note[MAX_KEY - MIN_KEY + 1], *buf = NULL;
 	float rms, sqrms, harm_pwr_old, harm_pwr, sqrms_old = 0;
 	note_info_t current = {FALSE, 0, 0};
-	bool_t note_search = FALSE;
+	bool_t notesearch = FALSE;
 
-	if (argc==1) {
+	if (argc==1 || argv[1] == '-h') {
 		usage();
 		
 		exit(0);
@@ -94,19 +94,19 @@ int main (int argc, char *argv[])
 				dbg_printf("midi out %s\n", midi_out);
 				break;
 			case 'p':
-				port_name = argv[++i];
+				portname = argv[++i];
 				dbg_printf("port %s\n", port_name);
 				break;
 			case 'O':
 				fname = argv[++i];
 				break;
-			case 'r':
-				samplerate = atoi(argv[++i]);
-				dbg_printf("samplerate %d\n", samplerate);
-				break;
 			case 'c':
 				channels = atoi(argv[++i]);
 				dbg_printf("channels %d\n", channels);
+				break;
+			case 'r':
+				samplerate = atoi(argv[++i]);
+				dbg_printf("samplerate %d\n", samplerate);
 				break;
 			case 'f':
 				frames = atoi(argv[++i]);
@@ -122,13 +122,12 @@ int main (int argc, char *argv[])
 	IF_ERR_EXIT(((x = malloc(sizeof(float) * frames)) == 0), (stderr, "failed memory allocation\n"))
 	IF_ERR(((fd = open(fname, O_CREAT | O_WRONLY, 0666)) < 0), ("Not recording\n"), ;)
 	dbg_printf("Recording to file: %s\n", fname);
-  //inizializzazione con libreria da fare
-	pcm_stream_t sett = {NULL, "default", buf, frames, samplerate, channels, CAPTURE, TRUE};
-	midi_stream_t seq = {NULL, midi_out, NULL, port_name, 0, OUTPUT, 0};
+	//inizializzazione PCM stream e MIDI seq (details in "audiostream.h")
+	pcm_stream_t sett = {NULL, audio_in, buf, frames, samplerate, channels, CAPTURE, TRUE};
+	midi_stream_t seq = {NULL, midi_out, NULL, portname, 0, OUTPUT, 0};
   
-	IF_ERR_EXIT(((err = pcm_init(&sett)) < 0), (stderr, "Unable to capture\n"))
-	IF_ERR_EXIT(((err = midi_init(&seq)) < 0), (stderr, "Unable to open MIDI sequencer\n"))
-	//dbg_printf("portID %d port name %s output %s\n", seq.portid, seq.portname, midi_out);
+	IF_ERR_EXIT(((err = pcm_init(&sett)) < 0), (stderr, "Unable to start PCM stream\n"))
+	IF_ERR_EXIT(((err = midi_init(&seq)) < 0), (stderr, "Unable to start MIDI sequencer\n"))
 
 	dbg_printf("entrata ciclo\n");
 	for (int j = 0; !stop; j++) {
@@ -137,16 +136,16 @@ int main (int argc, char *argv[])
 		sqrms = 0;
 
 		for (int i = 0; i < frames; i++) {
-			x[i] = buf[i*channels];
+			x[i] = buf[i * channels];
 			//saturation check
 	      		if (x[i] > SATURATION_LEVEL || x[i] < -SATURATION_LEVEL) {
 	      			saturation_count++;
 	      			if (saturation_count > MAX_SATUR_SAMPLES)
-	      				printf("results may not be reliable due to saturation levels. Please move device further from source.\n");
+	      				fprintf(stderr, "Results may not be reliable due to saturation levels. Please move device further from source\n");
 	      		} else {
 	      			saturation_count = 0;
 	      		}
-			rms += x[i] * x[i];
+			sqrms += x[i] * x[i];
 		}
 		sqrms /= frames;
 		rms = sqrt(sqrms);
@@ -178,7 +177,6 @@ int main (int argc, char *argv[])
 		} else {
 			harm_pwr_old = 0.0;
 		}
-		//dbg_printf("harm pwr old %.4f\n", harm_pwr_old);
 		
 		if (harm_pwr_old > CONFIDENCE * harmonic_power_start[current.key] && sqrms < GAIN * sqrms_old) {
 			//same note as before
@@ -194,7 +192,7 @@ int main (int argc, char *argv[])
 		current.on = FALSE;
 		//current key is kept
 		current.vel = 0;
-		note_search = TRUE;
+		notesearch = TRUE;
 		
 		for (int i = MIN_KEY; i <= MAX_KEY; i++) {
 			dft_on_note[i-MIN_KEY] = dft_sqr_arg(MIDI_freq[i], x, frames, samplerate);
@@ -228,11 +226,11 @@ int main (int argc, char *argv[])
 			printf("detected note %d\n", current.key);
 		}
 		current.vel = get_velocity(current.key, sqrms, harm_pwr);
-		note_search = FALSE;
+		notesearch = FALSE;
 		//output to MIDI port
 		midi_noteon(&seq, 0, current.key, current.vel);
 
-		//write recording if required
+		//write recording, if required by user
 		if (fd >= 0) {
 			unsigned long to_write = sizeof(float) * frames;	//1 channel only
 			unsigned char *ptr = (unsigned char *) buf;
@@ -241,7 +239,7 @@ int main (int argc, char *argv[])
 				int written = write(fd, buf, to_write);
 			
 				if (written < 0) {
-					printf("recording error\n");
+					fprintf(stderr, "recording error\n");
 					break;
 				}
 				to_write -= written;
