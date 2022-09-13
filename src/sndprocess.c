@@ -71,7 +71,7 @@ int main (int argc, char *argv[])
 	note_info_t current = {FALSE, 0, 0};
 	bool_t notesearch = FALSE;
 
-	if (argc==1 || argv[1] == '-h') {
+	if (argc==1 || argv[1][1] == 'h') {
 		usage();
 		
 		exit(0);
@@ -161,9 +161,9 @@ int main (int argc, char *argv[])
     
 		if (sqrms <= NOISE_SQRMS) {
 			//no detection
-			if (note_search) {
+			if (notesearch) {
 				printf("possibly missed a note\n");
-				note_search = FALSE;
+				notesearch = FALSE;
 			}
 			//turn off previous note, if any
 			current.on = FALSE;
@@ -233,7 +233,7 @@ int main (int argc, char *argv[])
 			current.key = index + MIN_KEY;
 			printf("detected note %d\n", current.key);
 		}
-		current.vel = get_velocity(current.key, sqrms, harm_pwr);
+		current.vel = get_velocity(current.key, (1 - harm_pwr_old) * sqrms);
 		notesearch = FALSE;
 		//output to MIDI port
 		midi_noteon(&seq, 0, current.key, current.vel);

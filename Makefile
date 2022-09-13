@@ -1,9 +1,9 @@
 CC=gcc
-CFLAGS=-g -Wall
+CFLAGS=-g -Wall -I./include
 
 SRCHOME=./src/
-HEADHOME=-I./include/
-LIBHOME=-L./libs
+HEADHOME=-I ./include
+LIBHOME=-L ./libs
 LDFLAGS=-lsndutils -lfourier -laudiostream -lasound -lm
 SRCS=$(SRCHOME)sndprocess.c $(SRCHOME)sndutils.c $(SRCHOME)fourier.c $(SRCHOME)audiostream.c
 OBJS=$(SRCS:.c=.o)
@@ -17,5 +17,5 @@ $(PROGS): $(OBJS)
 
 # .PHONY: clean
 clean:
-	rm -f *~ $(PROGS) *.o
+	rm -f *~ $(PROGS) $(SRCHOME)*.o
 
